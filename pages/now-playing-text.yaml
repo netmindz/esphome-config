@@ -1,26 +1,26 @@
 # pages/now-playing-text.yaml
 # Text-only Now Playing page for 64×64 HUB75
 #
-# Displays title, artist, album and a live progress bar.
-# No cover art / Music Assistant / MASS dependency.
+# Shows title, artist, album and a live progress bar.
+# Prefers primary_entity (e.g. HEOS); falls back to fallback_entity when
+# primary is idle/off. No cover art / Music Assistant / MASS dependency.
 #
 # Layout (64×64):
 #   ┌──────────────────────────────────────────────┐
-#   │  Title (circular scroll)                     │  8 px
+#   │  Title  (circular scroll)                    │  8 px
 #   ├──────────────────────────────────────────────┤  1 px divider
 #   │  Artist (circular scroll)                    │  8 px
 #   ├──────────────────────────────────────────────┤  1 px divider
 #   │  Album  (circular scroll)                    │  8 px
-#   │                                              │
 #   │  (flex spacer)                               │
-#   │                                              │
 #   ├──────────────────────────────────────────────┤  1 px divider
-#   │  ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  6 px progress bar
+#   │  ████████░░░░░░░░░░░░░░░░░░  progress bar    │  6 px
 #   └──────────────────────────────────────────────┘
 #
 # Required vars:
 #   page_friendly_name    - Display name shown in Home Assistant
-#   media_player_entity   - HA media_player entity ID
+#   primary_entity        - Preferred media_player entity (shown when playing/paused)
+#   fallback_entity       - Fallback media_player entity (shown when primary is idle)
 
 # ── Page registration ──────────────────────────────────────────────────────────
 lvgl_page_manager:
@@ -28,12 +28,44 @@ lvgl_page_manager:
     - page: page_now_playing_text
       friendly_name: "${page_friendly_name}"
 
-# ── Global: track progress percentage ─────────────────────────────────────────
+# ── Globals ────────────────────────────────────────────────────────────────────
 globals:
   - id: np_progress_pct
     type: int
     restore_value: no
     initial_value: '0'
+  # true  = showing primary_entity
+  # false = showing fallback_entity
+  - id: np_use_primary
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+# ── Script: re-render all labels from whichever source is currently active ─────
+script:
+  - id: np_refresh_all
+    then:
+      - script.execute:
+          id: normalize_media_text
+          widget: !lambda 'return id(np_title_lbl);'
+          text: !lambda |-
+            return id(np_use_primary)
+              ? id(np_title_p).state.c_str()
+              : id(np_title_f).state.c_str();
+      - script.execute:
+          id: normalize_media_text
+          widget: !lambda 'return id(np_artist_lbl);'
+          text: !lambda |-
+            return id(np_use_primary)
+              ? id(np_artist_p).state.c_str()
+              : id(np_artist_f).state.c_str();
+      - script.execute:
+          id: normalize_media_text
+          widget: !lambda 'return id(np_album_lbl);'
+          text: !lambda |-
+            return id(np_use_primary)
+              ? id(np_album_p).state.c_str()
+              : id(np_album_f).state.c_str();
 
 # ── LVGL ──────────────────────────────────────────────────────────────────────
 lvgl:
@@ -152,53 +184,144 @@ lvgl:
 # ── Text sensors ───────────────────────────────────────────────────────────────
 text_sensor:
 
+  # ── Primary entity (heos / preferred) ──────────────────────────────────────
   - platform: homeassistant
-    id: np_title
-    entity_id: ${media_player_entity}
+    id: np_title_p
+    entity_id: ${primary_entity}
     attribute: media_title
     internal: true
     on_value:
-      - script.execute:
-          id: normalize_media_text
-          widget: !lambda 'return id(np_title_lbl);'
-          text: !lambda 'return x.c_str();'
+      - if:
+          condition:
+            lambda: return id(np_use_primary);
+          then:
+            - script.execute:
+                id: normalize_media_text
+                widget: !lambda 'return id(np_title_lbl);'
+                text: !lambda 'return x.c_str();'
 
   - platform: homeassistant
-    id: np_artist
-    entity_id: ${media_player_entity}
+    id: np_artist_p
+    entity_id: ${primary_entity}
     attribute: media_artist
     internal: true
     on_value:
-      - script.execute:
-          id: normalize_media_text
-          widget: !lambda 'return id(np_artist_lbl);'
-          text: !lambda 'return x.c_str();'
+      - if:
+          condition:
+            lambda: return id(np_use_primary);
+          then:
+            - script.execute:
+                id: normalize_media_text
+                widget: !lambda 'return id(np_artist_lbl);'
+                text: !lambda 'return x.c_str();'
 
   - platform: homeassistant
-    id: np_album
-    entity_id: ${media_player_entity}
+    id: np_album_p
+    entity_id: ${primary_entity}
     attribute: media_album_name
     internal: true
     on_value:
-      - script.execute:
-          id: normalize_media_text
-          widget: !lambda 'return id(np_album_lbl);'
-          text: !lambda 'return x.c_str();'
+      - if:
+          condition:
+            lambda: return id(np_use_primary);
+          then:
+            - script.execute:
+                id: normalize_media_text
+                widget: !lambda 'return id(np_album_lbl);'
+                text: !lambda 'return x.c_str();'
 
   - platform: homeassistant
-    id: np_state
-    entity_id: ${media_player_entity}
+    id: np_state_p
+    entity_id: ${primary_entity}
     internal: true
+    on_value:
+      # Recompute active source: primary wins if playing or paused
+      - globals.set:
+          id: np_use_primary
+          value: !lambda |-
+            return (x == "playing" || x == "paused");
+      - script.execute: np_refresh_all
 
   - platform: homeassistant
-    id: np_pos_updated_at
-    entity_id: ${media_player_entity}
+    id: np_upd_p
+    entity_id: ${primary_entity}
     attribute: media_position_updated_at
     internal: true
 
   - platform: homeassistant
-    id: np_content_id
-    entity_id: ${media_player_entity}
+    id: np_cid_p
+    entity_id: ${primary_entity}
+    attribute: media_content_id
+    internal: true
+
+  # ── Fallback entity (hub / secondary) ──────────────────────────────────────
+  - platform: homeassistant
+    id: np_title_f
+    entity_id: ${fallback_entity}
+    attribute: media_title
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: return !id(np_use_primary);
+          then:
+            - script.execute:
+                id: normalize_media_text
+                widget: !lambda 'return id(np_title_lbl);'
+                text: !lambda 'return x.c_str();'
+
+  - platform: homeassistant
+    id: np_artist_f
+    entity_id: ${fallback_entity}
+    attribute: media_artist
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: return !id(np_use_primary);
+          then:
+            - script.execute:
+                id: normalize_media_text
+                widget: !lambda 'return id(np_artist_lbl);'
+                text: !lambda 'return x.c_str();'
+
+  - platform: homeassistant
+    id: np_album_f
+    entity_id: ${fallback_entity}
+    attribute: media_album_name
+    internal: true
+    on_value:
+      - if:
+          condition:
+            lambda: return !id(np_use_primary);
+          then:
+            - script.execute:
+                id: normalize_media_text
+                widget: !lambda 'return id(np_album_lbl);'
+                text: !lambda 'return x.c_str();'
+
+  - platform: homeassistant
+    id: np_state_f
+    entity_id: ${fallback_entity}
+    internal: true
+    on_value:
+      # Only recompute if primary is not already active
+      - globals.set:
+          id: np_use_primary
+          value: !lambda |-
+            std::string ps = id(np_state_p).state;
+            return (ps == "playing" || ps == "paused");
+      - script.execute: np_refresh_all
+
+  - platform: homeassistant
+    id: np_upd_f
+    entity_id: ${fallback_entity}
+    attribute: media_position_updated_at
+    internal: true
+
+  - platform: homeassistant
+    id: np_cid_f
+    entity_id: ${fallback_entity}
     attribute: media_content_id
     internal: true
 
@@ -206,44 +329,64 @@ text_sensor:
 sensor:
 
   - platform: homeassistant
-    id: np_position
-    entity_id: ${media_player_entity}
+    id: np_pos_p
+    entity_id: ${primary_entity}
     attribute: media_position
     internal: true
 
   - platform: homeassistant
-    id: np_duration
-    entity_id: ${media_player_entity}
+    id: np_dur_p
+    entity_id: ${primary_entity}
     attribute: media_duration
     internal: true
 
-# ── Progress bar interval (1 s tick) ──────────────────────────────────────────
+  - platform: homeassistant
+    id: np_pos_f
+    entity_id: ${fallback_entity}
+    attribute: media_position
+    internal: true
+
+  - platform: homeassistant
+    id: np_dur_f
+    entity_id: ${fallback_entity}
+    attribute: media_duration
+    internal: true
+
+# ── Progress bar (1 s tick) ────────────────────────────────────────────────────
 interval:
   - interval: 1s
     then:
       - lambda: |-
-          const float     dur     = id(np_duration).state;
-          const float     pos_raw = id(np_position).state;
-          const auto      st      = id(np_state).state;
-          const auto      upd     = id(np_pos_updated_at).state;
-          const auto      cid     = id(np_content_id).state;
-          const uint32_t  now_ms  = millis();
+          const bool  use_p   = id(np_use_primary);
+          const float dur     = use_p ? id(np_dur_p).state  : id(np_dur_f).state;
+          const float pos_raw = use_p ? id(np_pos_p).state  : id(np_pos_f).state;
+          const auto  st      = use_p ? id(np_state_p).state : id(np_state_f).state;
+          const auto  upd     = use_p ? id(np_upd_p).state  : id(np_upd_f).state;
+          const auto  cid     = use_p ? id(np_cid_p).state  : id(np_cid_f).state;
+          const uint32_t now_ms = millis();
 
-          static float       base_pos   = 0.0f;
-          static uint32_t    base_ms    = 0;
+          static float       base_pos        = 0.0f;
+          static uint32_t    base_ms         = 0;
           static std::string last_state;
           static std::string last_upd;
           static std::string last_cid;
-          static bool        first_run  = true;
+          static bool        last_use_p      = false;
+          static bool        first_run       = true;
 
           bool reanchor      = false;
           bool track_changed = false;
 
+          // Source switch → treat as track change so progress resets
+          if (use_p != last_use_p) {
+            last_use_p    = use_p;
+            reanchor      = true;
+            track_changed = true;
+          }
           if (upd != last_upd) { last_upd = upd; reanchor = true; }
           if (cid != last_cid) {
-            last_cid       = cid;
-            reanchor       = true;
-            track_changed  = true;
+            last_cid      = cid;
+            reanchor      = true;
+            track_changed = true;
             if (!first_run) {
               id(np_progress_pct) = 0;
               lv_bar_set_value(id(np_progress_bar), 0, LV_ANIM_OFF);
