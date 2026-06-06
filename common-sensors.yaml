@@ -152,9 +152,17 @@ sensor:
             if (isnan(x)) {
               snprintf(buf, sizeof(buf), "--");
             } else {
-              snprintf(buf, sizeof(buf), "%.0f", x);
+              snprintf(buf, sizeof(buf), "%.0f", x < 0 ? -x : x);
             }
             return buf;
+          text_color: !lambda |-
+            if (!isnan(x) && x < 0) return lv_color_hex(${color_green});
+            return lv_color_hex(${color_white});
+      - lvgl.label.update:
+          id: grid_usage_unit_label
+          text_color: !lambda |-
+            if (!isnan(x) && x < 0) return lv_color_hex(${color_green});
+            return lv_color_hex(${color_white});
       - lvgl.image.update:
           id: home_icon
           image_recolor: !lambda |-
