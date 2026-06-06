@@ -278,8 +278,9 @@ script:
             if (!id(en_battery_show_power)) return lv_color_hex(0xFFFFFF);
             float w = id(en_battery_w);
             if (isnan(w)) return lv_color_hex(0xFFFFFF);
-            return (w <= 0) ? lv_color_hex(0x00CC00)   // green  — charging (negative = charging)
-                            : lv_color_hex(0xFF8800);  // orange — discharging (positive = discharging)
+            if (w < 0) return lv_color_hex(0x00CC00);   // green  — charging (negative = charging)
+            if (w > 0) return lv_color_hex(0xFF8800);  // orange — discharging (positive = discharging)
+            return lv_color_hex(0xFFFFFF);             // white  — idle (zero)
 
 # ── Interval: cycle battery label between SoC and power every 4 s ─────────────
 interval:
@@ -287,7 +288,10 @@ interval:
     then:
       - globals.set:
           id: en_battery_show_power
-          value: !lambda return !id(en_battery_show_power);
+          value: !lambda |-
+            float w = id(en_battery_w);
+            if (!isnan(w) && w == 0.0f) return false;
+            return !id(en_battery_show_power);
       - script.execute: en_refresh_battery_label
 
 # ── Sensors ───────────────────────────────────────────────────────────────────
