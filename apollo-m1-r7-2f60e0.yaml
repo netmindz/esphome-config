@@ -57,8 +57,7 @@ packages:
     file: pages/now-playing-text.yaml
     vars:
       page_friendly_name: "Now Playing"
-      primary_entity: "media_player.heos_living_room"
-      fallback_entity: "media_player.living_room_hub"
+      media_player_entity: "media_player.living_room"
 
   remote_package_files:
     url: https://github.com/pavlov-net/hub75-studio
