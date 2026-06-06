@@ -7,6 +7,7 @@ substitutions:
   color_grey: "0x666666"
   color_white: "0xFFFFFF"
   color_black: "0x000000"
+  color_orange: "0xfa6a25"
   rate_low_threshold: "15"
   rate_high_threshold: "25"
 
@@ -95,13 +96,6 @@ binary_sensor:
     entity_id: binary_sensor.octopus_energy_target_daytime_low
     id: low_cost
 
-  - platform: homeassistant
-    entity_id: binary_sensor.heater
-    id: heater_status
-    on_state:
-      then:
-        - script.execute: update_hottub_display
-
 sensor:
   - platform: homeassistant
     entity_id: sensor.octopus_energy_electricity_23l3599542_1900029102710_current_rate
@@ -161,46 +155,50 @@ sensor:
                 return lv_color_hsv_to_rgb(hue, 100, 100);
               }
 
+
   - platform: homeassistant
-    entity_id: sensor.hottub_tub_temperature
-    id: tub_temperature
+    entity_id: sensor.inverter_battery_soc
+    id: battery_soc
     on_value:
       then:
-        - script.execute: update_hottub_display
+        - lvgl.label.update:
+            id: lbl_battery_icon
+            text_color: !lambda |-
+              if (isnan(x)) return lv_color_hex(${color_white});
+              if (x > 50) return lv_color_hex(${color_green});
+              if (x > 20) return lv_color_hex(${color_orange});
+              return lv_color_hex(${color_red});
+        - lvgl.label.update:
+            id: lbl_battery_soc
+            text: !lambda |-
+              static char buf[16];
+              if (isnan(x)) {
+                snprintf(buf, sizeof(buf), "--%");
+              } else {
+                snprintf(buf, sizeof(buf), "%.0f%%", x);
+              }
+              return buf;
+            text_color: !lambda |-
+              if (isnan(x)) return lv_color_hex(${color_white});
+              if (x > 50) return lv_color_hex(${color_green});
+              if (x > 20) return lv_color_hex(${color_orange});
+              return lv_color_hex(${color_red});
 
-script:
-  - id: update_hottub_display
-    then:
-      - if:
-          condition:
-            lambda: 'return id(heater_status).state;'
-          then:
-            - lvgl.label.update:
-                id: lbl_hottub_icon
-                text_color: ${color_red}
-            - lvgl.label.update:
-                id: lbl_tub_temp
-                text:
-                  format: "%.1fC"
-                  args: [ 'id(tub_temperature).state' ]
-                text_color: ${color_red}
-            - lvgl.label.update:
-                id: lbl_heating_status
-                text: "Heating"
-                text_color: ${color_red}
-          else:
-            - lvgl.label.update:
-                id: lbl_hottub_icon
-                text_color: ${color_light_blue}
-            - lvgl.label.update:
-                id: lbl_tub_temp
-                text:
-                  format: "%.1fC"
-                  args: [ 'id(tub_temperature).state' ]
-                text_color: ${color_light_blue}
-            - lvgl.label.update:
-                id: lbl_heating_status
-                text: ""
+  - platform: homeassistant
+    entity_id: sensor.inverter_pv_power
+    id: solar_power
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_solar_power
+            text: !lambda |-
+              static char buf[32];
+              if (isnan(x)) {
+                snprintf(buf, sizeof(buf), "--w");
+              } else {
+                snprintf(buf, sizeof(buf), "%.0fw", x);
+              }
+              return buf;
 
 output:
   - platform: ledc
@@ -238,7 +236,6 @@ psram:
 display:
   - platform: mipi_spi
     model: t-display-s3
-    rotation: 270
     auto_clear_enabled: false
 
 font:
@@ -266,7 +263,7 @@ font:
       - "\U0000e518" # sun
       - "\U0000e037" # play
       - "\U0000e044" # skip next
-      - "\U0000eb46" # hottub
+      - "\U0000e1a4" # battery
       - "\U0000e089" # start
       - "\U0000ef5d" # next
 
@@ -279,7 +276,6 @@ font:
       - "\U0000e518" # sun
       - "\U0000e037" # play
       - "\U0000e044" # skip next
-      - "\U0000eb46" # hottub
       - "\U0000e089" # start
       - "\U0000ef5d" # next
 
@@ -291,6 +287,7 @@ lvgl:
   displays:
   color_depth: 16
   log_level: WARN
+  rotation: 270
   pages:
     - id: main_page
       bg_color: ${color_black}
@@ -376,32 +373,41 @@ lvgl:
             text: ""
 
         # ═══════════════════════════════════════
-        # ROW 3: Hot Tub (y=130)
+        # ROW 3: Battery SoC + Solar (y=130)
         # ═══════════════════════════════════════
 
-        # Hot tub icon
+        # Battery icon (color-coded by SoC)
         - label:
-            id: lbl_hottub_icon
+            id: lbl_battery_icon
             x: 10
             y: 130
             text_font: icons30
-            text_color: ${color_light_blue}
-            text: "\U0000eb46"
+            text_color: ${color_green}
+            text: "\U0000e1a4"
 
-        # Tub temperature
+        # Battery SoC value (color-coded by SoC)
         - label:
-            id: lbl_tub_temp
+            id: lbl_battery_soc
             x: 45
             y: 130
             text_font: roboto30
-            text_color: ${color_light_blue}
-            text: ""
+            text_color: ${color_green}
+            text: "--%"
 
-        # Heating status text (shown only when heating)
+        # Solar icon (sun)
         - label:
-            id: lbl_heating_status
-            x: 130
+            id: lbl_solar_icon
+            x: 160
+            y: 130
+            text_font: icons30
+            text_color: ${color_light_grey}
+            text: "\U0000e518"
+
+        # Solar power value
+        - label:
+            id: lbl_solar_power
+            x: 195
             y: 130
             text_font: roboto30
-            text_color: ${color_red}
-            text: ""
+            text_color: ${color_light_grey}
+            text: "--w"
