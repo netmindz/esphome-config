@@ -267,13 +267,19 @@ script:
               if (isnan(w)) {
                 snprintf(buf, sizeof(buf), "--W");
               } else {
-                int v = (int)w, a = v < 0 ? -v : v;
-                const char* sign = v >= 0 ? "+" : "-";
-                if (a >= 1000) snprintf(buf, sizeof(buf), "%s%d,%03dW", sign, a/1000, a%1000);
-                else           snprintf(buf, sizeof(buf), "%s%dW", sign, a);
+                int a = (int)(w >= 0 ? w : -w);
+                if (a >= 1000) snprintf(buf, sizeof(buf), "%d,%03dW", a/1000, a%1000);
+                else           snprintf(buf, sizeof(buf), "%dW", a);
               }
             }
             return buf;
+          # green = charging, orange = discharging, white = SoC mode or unknown
+          text_color: !lambda |-
+            if (!id(en_battery_show_power)) return lv_color_hex(0xFFFFFF);
+            float w = id(en_battery_w);
+            if (isnan(w)) return lv_color_hex(0xFFFFFF);
+            return (w >= 0) ? lv_color_hex(0x00CC00)   // green  — charging
+                            : lv_color_hex(0xFF8800);  // orange — discharging
 
 # ── Interval: cycle battery label between SoC and power every 4 s ─────────────
 interval:
