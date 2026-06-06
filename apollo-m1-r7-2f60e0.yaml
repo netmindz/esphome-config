@@ -37,8 +37,23 @@ web_server:
   version: 3
 
 packages:
+  # Local energy dashboard page (hub75-studio page pattern)
+  energy_dashboard: !include
+    file: pages/energy-dashboard.yaml
+    vars:
+      page_friendly_name: "Energy Dashboard"
+      solar_entity: "sensor.inverter_pv_power"
+      load_entity: "sensor.inverter_load_power"
+      grid_entity: "sensor.inverter_grid_power"
+      battery_power_entity: "sensor.inverter_battery_power"
+      battery_soc_entity: "sensor.inverter_battery_soc"
+      current_rate_entity: "sensor.octopus_energy_electricity_23l3599542_1900029102710_current_rate"
+      next_rate_entity: "sensor.octopus_energy_electricity_23l3599542_1900029102710_next_rate"
+      rate_low_threshold: "15"
+      rate_high_threshold: "25"
+
   remote_package_files:
-    url: https://github.com/stuartparmenter/hub75-studio
+    url: https://github.com/pavlov-net/hub75-studio
     ref: main
     refresh: 0s
     files:
@@ -49,7 +64,7 @@ packages:
     - path: packages/controllers/apollo-automation-m1-rev6.yaml
       vars:
         panel_width: ${display_panel_width}
-        panel_height: ${display_panel_width}
+        panel_height: ${display_panel_height}
         layout: ${display_layout}
         layout_rows: ${display_layout_rows}
         layout_cols: ${display_layout_cols}
