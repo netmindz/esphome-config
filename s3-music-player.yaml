@@ -1,0 +1,91 @@
+substitutions:
+  device_name: s3-music-player
+  friendly_name: "S3 Music Player"
+  task_stack_in_psram: "false"
+  # Maximum allowed buffer_size for http_request media source (capped at 512000)
+  media_source_buffer_size: "512000"
+  # I2S audio pins
+  i2s_lrclk_pin: GPIO3
+  i2s_bclk_pin: GPIO2
+  i2s_dout_pin: GPIO4
+  # RGB LED
+  rgb_led_pin: GPIO21
+  
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  # Waveshare ESP32-S3-Zero (ESP32-S3FH4R2 — 4MB flash, 2MB quad PSRAM)
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+# 2MB quad PSRAM on the ESP32-S3FH4R2.
+# GPIO33–37 are reserved for PSRAM internally and are not exposed on the header.
+psram:
+  mode: quad
+  speed: 80MHz
+
+wifi:
+  ssid: "MilliWatt"
+  password: !secret wifi_password
+  power_save_mode: NONE
+  ap:
+    ssid: "${friendly_name} Fallback"
+    password: !secret wifi_password
+
+captive_portal:
+
+logger:
+
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+# ---------------------------------------------------------------------------
+# I2S Audio — WCMCU-1334 (UDA1334A) wiring:
+#
+#   UDA1334A  →  ESP32-S3-Zero
+#   VIN       →  3V3
+#   GND       →  GND
+#   DIN       →  GPIO4   — I2S serial data
+#   BCLK      →  GPIO2   — I2S bit clock
+#   WSEL      →  GPIO3   — I2S word select / LR clock
+#   (MUTE, SF0, SF1, PLL, FLT, DE-EMPH left unconnected for defaults)
+#
+# These GPIOs are safe on the S3-Zero: they avoid USB (19/20), BOOT (0),
+# the WS2812 LED (21), PSRAM (33-37), and UART0 (43/44).
+# Re-assign if any of these conflict with other peripherals on your board.
+# ---------------------------------------------------------------------------
+
+
+# ===== Packages =====
+packages:
+  esparagus_remote:
+    url: https://github.com/sonocotta/esp32-audio-dock
+    ref: main
+    files:
+      - firmware/esphome/packages/sendspin.yaml
+      # Optional: OLED displays clock when idling, and track/artist info when playing
+      # - firmware/esphome/packages/sendspin-addon-oled.yaml
+
+      - firmware/esphome/packages/sendspin-audio.yaml
+      - firmware/esphome/packages/light.yaml
+      - firmware/esphome/packages/monitoring.yaml
+      - firmware/esphome/packages/monitoring-wifi.yaml
+
+# Increase speaker buffers to reduce stuttering caused by network jitter.
+# The package hardcodes 100ms throughout.
+speaker:
+  - id: !extend i2s_speaker_id
+    buffer_duration: 2000ms
+  - id: !extend media_resampling_speaker
+    buffer_duration: 500ms
+  - id: !extend announcement_resampling_speaker
+    buffer_duration: 500ms

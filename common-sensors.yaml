@@ -1,0 +1,371 @@
+sensor:
+  - platform: homeassistant
+    id: electricity_power
+    # Now sourced from inverter load power (house consumption)
+    entity_id: sensor.inverter_load_power
+    on_value:
+      - lvgl.label.update:
+          id: power_label
+          text: !lambda |-
+            static char buf[32];
+            if (isnan(x)) {
+              snprintf(buf, sizeof(buf), "--");
+            } else {
+              snprintf(buf, sizeof(buf), "%.0f", x);
+            }
+            return buf;
+      - lvgl.obj.update:
+          id: electric_container
+          bg_color: !lambda |-
+            if ((id(current_rate).state * 100) > 10) {
+              if (id(electricity_power).state > 2000) {
+                return lv_color_hex(${color_red});
+              } else if (id(electricity_power).state > 800) {
+                return lv_color_hex(${color_orange});
+              }
+            } 
+            return lv_color_hex(${color_grey_bk});
+            
+  
+  - platform: homeassistant
+    id: current_rate
+    entity_id: sensor.octopus_energy_electricity_23l3599542_1900029102710_current_rate
+    on_value:
+      - lvgl.label.update:
+          id: current_rate_label
+          text: !lambda |-
+            static char buf[16];
+            if (isnan(x)) {
+              snprintf(buf, sizeof(buf), "--p");
+            } else {
+              snprintf(buf, sizeof(buf), "%.0fp", x * 100);
+            }
+            return buf;
+      - lvgl.obj.update:
+          id: now_container
+          bg_color: !lambda |-
+            if (isnan(x)) {
+              return lv_color_hex(${color_dark_grey});
+            }
+            float rate_pence = x * 100;
+            if (rate_pence < 0) {
+              return lv_color_hsv_to_rgb(240, 100, 72);
+            } else if (rate_pence <= ${rate_low_threshold}) {
+              // Interpolate hue from 240 (blue) up to 120 (green) as rate rises toward low threshold
+              float ratio = rate_pence / (float)(${rate_low_threshold});
+              uint16_t hue = (uint16_t)(120.0f + 120.0f * (1.0f - ratio));
+              return lv_color_hsv_to_rgb(hue, 100, 61);
+            } else if (rate_pence >= ${rate_high_threshold}) {
+              return lv_color_hsv_to_rgb(0, 100, 72);
+            } else {
+              // Interpolate hue from 120 (green) down to 0 (red) through 60 (yellow)
+              float ratio = (rate_pence - ${rate_low_threshold}) / (float)(${rate_high_threshold} - ${rate_low_threshold});
+              uint16_t hue = (uint16_t)(120.0f * (1.0f - ratio));
+              uint8_t val = (uint8_t)(58.0f + 14.0f * ratio);
+              return lv_color_hsv_to_rgb(hue, 100, val);
+            }
+
+  - platform: homeassistant
+    id: current_rate_min
+    entity_id: sensor.octopus_energy_electricity_23l3599542_1900029102710_current_rate
+    attribute: "Current day min rate"
+
+  - platform: homeassistant
+    id: current_rate_max
+    entity_id: sensor.octopus_energy_electricity_23l3599542_1900029102710_current_rate
+    attribute: "Current day max rate"
+
+  
+  - platform: homeassistant
+    id: next_rate
+    entity_id: sensor.octopus_energy_electricity_23l3599542_1900029102710_next_rate
+    on_value:
+      - lvgl.label.update:
+          id: next_rate_label
+          text: !lambda |-
+            static char buf[16];
+            if (isnan(x)) {
+              snprintf(buf, sizeof(buf), "--p");
+            } else {
+              snprintf(buf, sizeof(buf), "%.0fp", id(next_rate).state * 100);
+            }
+            return buf;
+      - lvgl.obj.update:
+          id: next_container
+          bg_color: !lambda |-
+            if (isnan(x)) {
+              return lv_color_hex(${color_dark_grey});
+            }
+            float rate_pence = x * 100;
+            if (rate_pence < 0) {
+              return lv_color_hsv_to_rgb(240, 100, 72);
+            } else if (rate_pence <= ${rate_low_threshold}) {
+              // Interpolate hue from 240 (blue) up to 120 (green) as rate rises toward low threshold
+              float ratio = rate_pence / (float)(${rate_low_threshold});
+              uint16_t hue = (uint16_t)(120.0f + 120.0f * (1.0f - ratio));
+              return lv_color_hsv_to_rgb(hue, 100, 61);
+            } else if (rate_pence >= ${rate_high_threshold}) {
+              return lv_color_hsv_to_rgb(0, 100, 72);
+            } else {
+              // Interpolate hue from 120 (green) down to 0 (red) through 60 (yellow)
+              float ratio = (rate_pence - ${rate_low_threshold}) / (float)(${rate_high_threshold} - ${rate_low_threshold});
+              uint16_t hue = (uint16_t)(120.0f * (1.0f - ratio));
+              uint8_t val = (uint8_t)(58.0f + 14.0f * ratio);
+            return lv_color_hsv_to_rgb(hue, 100, val);
+            }
+
+  # --- Inverter / Solar / Grid / Battery sensors (from user's inverter)
+  - platform: homeassistant
+    id: solar_power
+    entity_id: sensor.inverter_pv_power
+    on_value:
+      - lvgl.label.update:
+          id: solar_power_label
+          text: !lambda |-
+            static char buf[32];
+            if (isnan(x)) {
+              snprintf(buf, sizeof(buf), "--");
+            } else {
+              snprintf(buf, sizeof(buf), "%.0f", x);
+            }
+            return buf;
+      - lvgl.image.update:
+          id: home_icon
+          image_recolor: !lambda |-
+            float solar   = isnan(id(solar_power).state)   ? 0.0f : id(solar_power).state;
+            float grid    = isnan(id(grid_power).state)    ? 0.0f : id(grid_power).state;
+            float battery = isnan(id(battery_power).state) ? 0.0f : id(battery_power).state;
+            if (solar <= 0.0f && grid <= 0.0f && battery <= 0.0f) return lv_color_hex(${color_white});
+            if (battery > solar)                     return lv_color_hex(${color_cyan});
+            if (solar >= battery && solar >= grid)   return lv_color_hex(${color_yellow});
+            return lv_color_hex(${color_orange});
+          image_recolor_opa: 100%
+
+  - platform: homeassistant
+    id: grid_power
+    entity_id: sensor.inverter_grid_power
+    on_value:
+      - lvgl.label.update:
+          id: grid_usage_label
+          text: !lambda |-
+            static char buf[32];
+            if (isnan(x)) {
+              snprintf(buf, sizeof(buf), "--");
+            } else {
+              snprintf(buf, sizeof(buf), "%.0f", x);
+            }
+            return buf;
+      - lvgl.image.update:
+          id: home_icon
+          image_recolor: !lambda |-
+            float solar   = isnan(id(solar_power).state)   ? 0.0f : id(solar_power).state;
+            float grid    = isnan(id(grid_power).state)    ? 0.0f : id(grid_power).state;
+            float battery = isnan(id(battery_power).state) ? 0.0f : id(battery_power).state;
+            if (solar <= 0.0f && grid <= 0.0f && battery <= 0.0f) return lv_color_hex(${color_white});
+            if (battery > solar)                     return lv_color_hex(${color_cyan});
+            if (solar >= battery && solar >= grid)   return lv_color_hex(${color_yellow});
+            return lv_color_hex(${color_orange});
+          image_recolor_opa: 100%
+
+  - platform: homeassistant
+    id: battery_power
+    entity_id: sensor.inverter_battery_power
+    on_value:
+      - lvgl.image.update:
+          id: home_icon
+          image_recolor: !lambda |-
+            float solar   = isnan(id(solar_power).state)   ? 0.0f : id(solar_power).state;
+            float grid    = isnan(id(grid_power).state)    ? 0.0f : id(grid_power).state;
+            float battery = isnan(id(battery_power).state) ? 0.0f : id(battery_power).state;
+            if (solar <= 0.0f && grid <= 0.0f && battery <= 0.0f) return lv_color_hex(${color_white});
+            if (battery > solar)                     return lv_color_hex(${color_cyan});
+            if (solar >= battery && solar >= grid)   return lv_color_hex(${color_yellow});
+            return lv_color_hex(${color_orange});
+          image_recolor_opa: 100%
+
+  - platform: homeassistant
+    id: battery_soc
+    entity_id: sensor.inverter_battery_soc
+    on_value:
+      - lvgl.label.update:
+          id: battery_soc_label
+          text: !lambda |-
+            static char buf[16];
+            if (isnan(x)) {
+              snprintf(buf, sizeof(buf), "--%%");
+            } else {
+              snprintf(buf, sizeof(buf), "%.0f%%", x);
+            }
+            return buf;
+      - lvgl.image.update:
+          id: battery_img
+          image_recolor: !lambda |-
+            if (isnan(x)) return lv_color_hex(${color_white});
+            if (x > 50) return lv_color_hex(${color_green});
+            if (x > 20) return lv_color_hex(${color_orange});
+            return lv_color_hex(${color_red});
+          image_recolor_opa: 100%
+
+  - platform: homeassistant 
+    id: icon
+    entity_id: weather.met_office_croydon
+    internal: True
+
+  - platform: homeassistant
+    id: bosch_dishwasher_remaining_program_time
+    entity_id: sensor.bosch_dishwasher_remaining_program_time
+    internal: True
+    on_value:
+      - lvgl.label.update:
+          id: dishwasher_time_label
+          text: !lambda |-
+            static char buf[16];
+            std::string op = id(bosch_dishwasher_operation_state).state;
+            bool idle = (op == "Ready" || op == "Inactive" || op == "");
+            // For DelayedStart use start_in sensor instead
+            bool delayed = (op == "DelayedStart");
+            float hours = delayed ? id(bosch_dishwasher_start_in).state : x;
+            if (idle || isnan(hours) || hours <= 0) {
+              snprintf(buf, sizeof(buf), "");
+            } else {
+              int total_mins = (int)round(hours * 60.0f);
+              if (total_mins >= 60) {
+                snprintf(buf, sizeof(buf), "%dh%02dm", total_mins / 60, total_mins % 60);
+              } else {
+                snprintf(buf, sizeof(buf), "%dm", total_mins);
+              }
+            }
+            return buf;
+
+  - platform: homeassistant
+    id: bosch_dishwasher_start_in
+    entity_id: sensor.bosch_dishwasher_start_in
+    internal: True
+    on_value:
+      - lvgl.label.update:
+          id: dishwasher_time_label
+          text: !lambda |-
+            static char buf[16];
+            std::string op = id(bosch_dishwasher_operation_state).state;
+            // Only use this sensor when in DelayedStart state
+            if (op != "DelayedStart" || isnan(x) || x <= 0) {
+              snprintf(buf, sizeof(buf), "");
+            } else {
+              int total_mins = (int)round(x * 60.0f);
+              if (total_mins >= 60) {
+                snprintf(buf, sizeof(buf), "%dh%02dm", total_mins / 60, total_mins % 60);
+              } else {
+                snprintf(buf, sizeof(buf), "%dm", total_mins);
+              }
+            }
+            return buf;
+
+
+text_sensor:
+  - platform: homeassistant
+    id: bosch_dishwasher_program_phase
+    entity_id: sensor.bosch_dishwasher_program_phase
+    internal: True
+    on_value:
+      - lvgl.label.update:
+          id: dishwasher_label
+          text: !lambda |-
+            // Home Connect Local uses PascalCase values
+            if (x == "PreRinse")   return "Pre-rinse";
+            if (x == "MainWash")   return "Washing";
+            if (x == "FinalRinse") return "Final rinse";
+            if (x == "Drying")     return "Drying";
+            if (x == "None" || x == "unavailable" || x == "")
+              return id(bosch_dishwasher_operation_state).state.c_str();
+            return x.c_str();
+      - lvgl.image.update:
+          id: dishwasher_status_icon
+          src: !lambda |-
+            if (x == "PreRinse" || x == "MainWash")
+              return dishwasher_icon_washing;
+            if (x == "FinalRinse")
+              return dishwasher_icon_rinsing;
+            if (x == "Drying")
+              return dishwasher_icon_drying;
+            return dishwasher_icon_idle;
+
+  - platform: homeassistant
+    id: bosch_dishwasher_operation_state
+    entity_id: sensor.bosch_dishwasher_operation_state
+    internal: True
+    on_value:
+      - lvgl.label.update:
+          id: dishwasher_time_label
+          text: !lambda |-
+            // Clear time label only when idle
+            if (x == "Ready" || x == "Inactive" || x == "")
+              return "";
+            // Otherwise keep whatever the time sensors have written — don't touch it
+            // by re-deriving from the time sensor state
+            std::string op = x;
+            bool delayed = (op == "DelayedStart");
+            float hours = delayed ? id(bosch_dishwasher_start_in).state
+                                  : id(bosch_dishwasher_remaining_program_time).state;
+            static char buf[16];
+            if (isnan(hours) || hours <= 0) {
+              snprintf(buf, sizeof(buf), "");
+            } else {
+              int total_mins = (int)round(hours * 60.0f);
+              if (total_mins >= 60) {
+                snprintf(buf, sizeof(buf), "%dh%02dm", total_mins / 60, total_mins % 60);
+              } else {
+                snprintf(buf, sizeof(buf), "%dm", total_mins);
+              }
+            }
+            return buf;
+      - lvgl.label.update:
+          id: dishwasher_label
+          text: !lambda |-
+            // Only drive label from operation state when no active program phase
+            std::string phase = id(bosch_dishwasher_program_phase).state;
+            if (phase == "PreRinse")   return "Pre-rinse";
+            if (phase == "MainWash")   return "Washing";
+            if (phase == "FinalRinse") return "Final rinse";
+            if (phase == "Drying")     return "Drying";
+            // No active phase — use operation state
+            if (x == "Inactive")       return "Inactive";
+            if (x == "Ready")          return "Ready";
+            if (x == "Run")            return "Running";
+            if (x == "DelayedStart")   return "Delayed";
+            if (x == "Pause")          return "Paused";
+            if (x == "ActionRequired") return "Attention!";
+            if (x == "Finished")       return "Finished";
+            if (x == "Error")          return "Error";
+            if (x == "Aborting")       return "Stopping";
+            return x.c_str();
+      - lvgl.widget.update:
+          id: dishwasher_status_icon
+          hidden: !lambda |-
+            return (x == "Ready" || x == "Inactive" || x == "");
+      - lvgl.image.update:
+          id: dishwasher_status_icon
+          src: !lambda |-
+            // Re-derive icon from phase first, fall back to operation state
+            std::string phase = id(bosch_dishwasher_program_phase).state;
+            if (phase == "PreRinse" || phase == "MainWash") return dishwasher_icon_washing;
+            if (phase == "FinalRinse")                      return dishwasher_icon_rinsing;
+            if (phase == "Drying")                          return dishwasher_icon_drying;
+            if (x == "Run")                                 return dishwasher_icon_washing;
+            if (x == "DelayedStart")                        return dishwasher_icon_delayed;
+            if (x == "Pause")                               return dishwasher_icon_paused;
+            if (x == "Finished")                            return dishwasher_icon_finished;
+            if (x == "Error" || x == "ActionRequired")      return dishwasher_icon_error;
+            return dishwasher_icon_idle;
+
+          
+
+binary_sensor:
+  - platform: homeassistant
+    entity_id: binary_sensor.octopus_energy_target_3hours
+    id: low_cost
+    internal: True
+
+  - platform: homeassistant
+    id: energy_saving_session
+    entity_id: binary_sensor.energy_saving_session
+    internal: True

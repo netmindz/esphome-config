@@ -1,0 +1,407 @@
+substitutions:
+  color_light_grey: "0xCCCCCC"
+  color_red: "0xFF0000"
+  color_light_blue: "0x3EBDD6"
+  color_green: "0x1BC156"
+  color_dark_grey: "0x202020"
+  color_grey: "0x666666"
+  color_white: "0xFFFFFF"
+  color_black: "0x000000"
+  rate_low_threshold: "15"
+  rate_high_threshold: "25"
+
+esphome:
+  friendly_name: Utility Room - T-Display-S3
+  name: s3
+  platformio_options:
+    board_build.arduino.memory_type: qio_opi
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  platform: esphome
+  password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "S3 Fallback Hotspot"
+    password: !secret wifi_password
+
+bluetooth_proxy:
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+    interval: 320ms
+    window: 300ms
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+text_sensor:
+  - platform: homeassistant
+    entity_id: sensor.low_cost_next_time
+    id: low_cost_next_time
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_low_cost_next_time
+            text:
+              format: " %s"
+              args: [ 'id(low_cost_next_time).state == "unavailable" ? "n/a" : id(low_cost_next_time).state.c_str()' ]
+
+  - platform: homeassistant
+    entity_id: sensor.daytime_low_time
+    id: daytime_low_time
+    internal: true
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_daytime_low_time
+            text:
+              format: " %s"
+              args: [ 'id(daytime_low_time).state == "unavailable" ? "n/a" : id(daytime_low_time).state.c_str()' ]
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      inverted: true
+    name: "Button 1"
+  - platform: gpio
+    pin:
+      number: GPIO14
+      inverted: true
+    name: "Button 2"
+
+  - platform: homeassistant
+    entity_id: binary_sensor.octopus_energy_target_daytime_low
+    id: low_cost
+
+  - platform: homeassistant
+    entity_id: binary_sensor.heater
+    id: heater_status
+    on_state:
+      then:
+        - script.execute: update_hottub_display
+
+sensor:
+  - platform: homeassistant
+    entity_id: sensor.octopus_energy_electricity_23l3599542_1900029102710_current_rate
+    id: current_rate
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_current_rate
+            text:
+              format: "%.0fp"
+              args: [ 'id(current_rate).state * 100' ]
+            text_color: !lambda |-
+              if (isnan(x)) {
+                return lv_color_hex(${color_white});
+              }
+              float rate_pence = x * 100;
+              if (rate_pence < 0) {
+                return lv_color_hsv_to_rgb(240, 100, 100);
+              } else if (rate_pence <= ${rate_low_threshold}) {
+                float ratio = rate_pence / (float)(${rate_low_threshold});
+                uint16_t hue = (uint16_t)(120.0f + 120.0f * (1.0f - ratio));
+                return lv_color_hsv_to_rgb(hue, 100, 100);
+              } else if (rate_pence >= ${rate_high_threshold}) {
+                return lv_color_hsv_to_rgb(0, 100, 100);
+              } else {
+                float ratio = (rate_pence - ${rate_low_threshold}) / (float)(${rate_high_threshold} - ${rate_low_threshold});
+                uint16_t hue = (uint16_t)(120.0f * (1.0f - ratio));
+                return lv_color_hsv_to_rgb(hue, 100, 100);
+              }
+
+  - platform: homeassistant
+    entity_id: sensor.octopus_energy_electricity_23l3599542_1900029102710_next_rate
+    id: next_rate
+    on_value:
+      then:
+        - lvgl.label.update:
+            id: lbl_next_rate
+            text:
+              format: "%.0fp"
+              args: [ 'id(next_rate).state * 100' ]
+            text_color: !lambda |-
+              if (isnan(x)) {
+                return lv_color_hex(${color_light_grey});
+              }
+              float rate_pence = x * 100;
+              if (rate_pence < 0) {
+                return lv_color_hsv_to_rgb(240, 100, 100);
+              } else if (rate_pence <= ${rate_low_threshold}) {
+                float ratio = rate_pence / (float)(${rate_low_threshold});
+                uint16_t hue = (uint16_t)(120.0f + 120.0f * (1.0f - ratio));
+                return lv_color_hsv_to_rgb(hue, 100, 100);
+              } else if (rate_pence >= ${rate_high_threshold}) {
+                return lv_color_hsv_to_rgb(0, 100, 100);
+              } else {
+                float ratio = (rate_pence - ${rate_low_threshold}) / (float)(${rate_high_threshold} - ${rate_low_threshold});
+                uint16_t hue = (uint16_t)(120.0f * (1.0f - ratio));
+                return lv_color_hsv_to_rgb(hue, 100, 100);
+              }
+
+  - platform: homeassistant
+    entity_id: sensor.hottub_tub_temperature
+    id: tub_temperature
+    on_value:
+      then:
+        - script.execute: update_hottub_display
+
+script:
+  - id: update_hottub_display
+    then:
+      - if:
+          condition:
+            lambda: 'return id(heater_status).state;'
+          then:
+            - lvgl.label.update:
+                id: lbl_hottub_icon
+                text_color: ${color_red}
+            - lvgl.label.update:
+                id: lbl_tub_temp
+                text:
+                  format: "%.1fC"
+                  args: [ 'id(tub_temperature).state' ]
+                text_color: ${color_red}
+            - lvgl.label.update:
+                id: lbl_heating_status
+                text: "Heating"
+                text_color: ${color_red}
+          else:
+            - lvgl.label.update:
+                id: lbl_hottub_icon
+                text_color: ${color_light_blue}
+            - lvgl.label.update:
+                id: lbl_tub_temp
+                text:
+                  format: "%.1fC"
+                  args: [ 'id(tub_temperature).state' ]
+                text_color: ${color_light_blue}
+            - lvgl.label.update:
+                id: lbl_heating_status
+                text: ""
+
+output:
+  - platform: ledc
+    frequency: 2000
+    pin: GPIO38
+    id: backlight_output
+
+light:
+  - platform: monochromatic
+    output: backlight_output
+    name: LCD Backlight
+    id: led
+    restore_mode: ALWAYS_ON
+    default_transition_length: 0s
+
+spi:
+  type: octal
+  clk_pin: 8
+  data_pins:
+    - 39
+    - 40
+    - 41
+    - 42
+    - ignore_strapping_warning: true
+      number: 45
+    - ignore_strapping_warning: true
+      number: 46
+    - 47
+    - 48
+
+psram:
+  speed: 80MHz
+  mode: octal
+
+display:
+  - platform: mipi_spi
+    model: t-display-s3
+    rotation: 270
+    auto_clear_enabled: false
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto50
+    size: 50
+    bpp: 4
+
+  - file: "gfonts://Roboto@700"
+    id: roboto50_bold
+    size: 50
+    bpp: 4
+
+  - file: "gfonts://Roboto"
+    id: roboto30
+    size: 30
+    bpp: 4
+
+  - file: "gfonts://Material+Symbols+Outlined"
+    id: icons30
+    size: 30
+    bpp: 4
+    glyphs:
+      - "\U0000efc0" # timer 3
+      - "\U0000e518" # sun
+      - "\U0000e037" # play
+      - "\U0000e044" # skip next
+      - "\U0000eb46" # hottub
+      - "\U0000e089" # start
+      - "\U0000ef5d" # next
+
+  - file: "gfonts://Material+Symbols+Outlined"
+    id: icons50
+    size: 50
+    bpp: 4
+    glyphs:
+      - "\U0000efc0" # timer 3
+      - "\U0000e518" # sun
+      - "\U0000e037" # play
+      - "\U0000e044" # skip next
+      - "\U0000eb46" # hottub
+      - "\U0000e089" # start
+      - "\U0000ef5d" # next
+
+i2c:
+  scl: 17
+  sda: 18
+
+lvgl:
+  displays:
+  color_depth: 16
+  log_level: WARN
+  pages:
+    - id: main_page
+      bg_color: ${color_black}
+      widgets:
+        # ═══════════════════════════════════════
+        # ROW 1: Current Rate + Next Rate (y=0)
+        # ═══════════════════════════════════════
+
+        # Current rate icon (star)
+        - label:
+            id: lbl_current_rate_icon
+            x: 10
+            y: 0
+            text_font: icons50
+            text_color: ${color_grey}
+            text: "\U0000e089"
+
+        # Current rate value (color changes based on value)
+        - label:
+            id: lbl_current_rate
+            x: 65
+            y: 0
+            text_font: roboto50_bold
+            text_color: ${color_white}
+            text: "--p"
+
+        # Next rate icon
+        - label:
+            id: lbl_next_rate_icon
+            x: 160
+            y: 0
+            text_font: icons50
+            text_color: ${color_grey}
+            text: "\U0000ef5d"
+
+        # Next rate value
+        - label:
+            id: lbl_next_rate
+            x: 215
+            y: 0
+            text_font: roboto50
+            text_color: ${color_light_grey}
+            text: "--p"
+
+        # ═══════════════════════════════════════
+        # ROW 2: Daytime Low + Low Cost Time (y=70)
+        # ═══════════════════════════════════════
+
+        # Daytime low icon (sun)
+        - label:
+            id: lbl_daytime_icon
+            x: 10
+            y: 70
+            text_font: icons30
+            text_color: ${color_light_grey}
+            text: "\U0000e518"
+
+        # Daytime low time
+        - label:
+            id: lbl_daytime_low_time
+            x: 35
+            y: 70
+            text_font: roboto30
+            text_color: ${color_light_grey}
+            text: ""
+
+        # Low cost icon (timer 3)
+        - label:
+            id: lbl_low_cost_icon
+            x: 150
+            y: 70
+            text_font: icons30
+            text_color: ${color_light_grey}
+            text: "\U0000efc0"
+
+        # Low cost next time
+        - label:
+            id: lbl_low_cost_next_time
+            x: 175
+            y: 70
+            text_font: roboto30
+            text_color: ${color_light_grey}
+            text: ""
+
+        # ═══════════════════════════════════════
+        # ROW 3: Hot Tub (y=130)
+        # ═══════════════════════════════════════
+
+        # Hot tub icon
+        - label:
+            id: lbl_hottub_icon
+            x: 10
+            y: 130
+            text_font: icons30
+            text_color: ${color_light_blue}
+            text: "\U0000eb46"
+
+        # Tub temperature
+        - label:
+            id: lbl_tub_temp
+            x: 45
+            y: 130
+            text_font: roboto30
+            text_color: ${color_light_blue}
+            text: ""
+
+        # Heating status text (shown only when heating)
+        - label:
+            id: lbl_heating_status
+            x: 130
+            y: 130
+            text_font: roboto30
+            text_color: ${color_red}
+            text: ""

@@ -1,0 +1,531 @@
+substitutions:
+  # Rate thresholds (in pence)
+  rate_low_threshold: "15"
+  rate_high_threshold: "25"
+
+  # Color definitions
+  color_black: "0x000000"
+  color_white: "0xFFFFFF"
+  color_dark_grey: "0x222222"
+  color_medium_grey: "0x444444"
+  color_green: "0x26c702"
+  color_red: "0xFF0000"
+  color_orange: "0xfa6a25"
+  color_grey_bk: "0x38393c"
+  color_cyan: "0x00FFFF"
+  color_yellow: "0xFFFF00"
+
+  # Font sizes — override in device yaml for smaller screens
+  font_title_size: "36"
+  font_sub_title_size: "29"
+  font_normal_size: "27"
+  font_normal_bold_size: "27"
+  font_body_size: "20"
+  font_body_hot_tub_size: "80"
+  font_house_electric_size: "29"
+  font_electric_size: "42"
+  font_time_size: "45"
+
+  # Icon sizes — override in device yaml for smaller screens
+  icon_size_large: "80x80"
+  icon_size_normal: "50x50"
+  icon_size_small: "24x24"
+
+globals:
+  - id: dummy_global
+    type: int
+    initial_value: '0'
+
+<<: !include common-sensors.yaml
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    timezone: "Europe/London"
+    on_time:
+      - seconds: /60
+        then:
+          - lvgl.label.update:
+              id: time_label
+              text: !lambda |-
+                static char buf[32];
+                auto time = id(homeassistant_time).now();
+                time.strftime(buf, sizeof(buf), "%I:%M%p");
+                return buf;
+
+    
+
+lvgl:
+  color_depth: 16
+  bg_color: ${color_black}
+
+  pages:
+    - id: page1
+      bg_color: ${color_black}
+      pad_all: 4
+      layout:
+        type: FLEX
+        flex_flow: COLUMN
+        flex_align_main: START
+        flex_align_cross: STRETCH
+        pad_row: 4
+
+      widgets:
+
+        # ### TITLE ###
+        - label:
+            id: title_label
+            text: "Home Overview"
+            text_font: font_title
+            text_color: ${color_white}
+
+        # Title underline
+        - obj:
+            id: title_line
+            height: 3
+            bg_color: ${color_white}
+            border_width: 0
+            pad_all: 0
+
+        # ### MIDDLE ROW: electric (left) + clock (right) ###
+        - obj:
+            id: middle_row
+            flex_grow: 2
+            width: "100%"
+            bg_color: ${color_black}
+            border_width: 0
+            pad_all: 0
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_main: START
+              flex_align_cross: STRETCH
+              pad_column: 4
+
+            widgets:
+
+              # --- Electric section ---
+              - obj:
+                  id: electric_container
+                  flex_grow: 1
+                  height: "100%"
+                  bg_color: ${color_dark_grey}
+                  border_color: ${color_medium_grey}
+                  border_width: 1
+                  pad_all: 4
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: START
+                    flex_align_cross: STRETCH
+                    pad_row: 4
+
+                  widgets:
+                    # Center block: solar above, house with grid at mid, battery below
+                    - obj:
+                        id: electric_center_block
+                        width: "100%"
+                        bg_opa: TRANSP
+                        border_width: 0
+                        pad_all: 0
+                        height: SIZE_CONTENT
+                        layout:
+                          type: FLEX
+                          flex_flow: COLUMN
+                          flex_align_main: CENTER
+                          flex_align_cross: CENTER
+                          pad_row: 4
+                        widgets:
+                          # Solar (above roof)
+                          - obj:
+                              id: solar_row
+                              width: "100%"
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              height: SIZE_CONTENT
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_main: CENTER
+                                flex_align_cross: END
+                                pad_column: 4
+                              widgets:
+                                 - image:
+                                     id: solar_panel_img
+                                     src: solar_panel
+                                     image_recolor: ${color_white}
+                                     image_recolor_opa: 100%
+                                 - label:
+                                     id: solar_power_label
+                                     text_font: font_house_electric
+                                     text_color: ${color_white}
+                                     text: "--"
+                                 - label:
+                                     id: solar_power_unit_label
+                                     text_font: font_body
+                                     text_color: ${color_white}
+                                     text: "w"
+
+                           # House row: load value left, house icon center
+                          - obj:
+                              id: house_row
+                              width: "100%"
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              height: SIZE_CONTENT
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_main: CENTER
+                                flex_align_cross: END
+                                pad_column: 4
+                              widgets:
+                                - label:
+                                    id: power_label
+                                    text_font: font_electric
+                                    text_color: ${color_white}
+                                    text: "--"
+                                - label:
+                                    id: power_unit_label
+                                    text_font: font_house_electric
+                                    text_color: ${color_white}
+                                    text: "w"
+                                - image:
+                                    id: home_icon
+                                    src: home_electric
+                                    image_recolor: ${color_white}
+                                    image_recolor_opa: 100%
+
+                          # Battery + grid row (below house)
+                          - obj:
+                              id: battery_row
+                              width: "100%"
+                              bg_opa: TRANSP
+                              border_width: 0
+                              pad_all: 0
+                              height: SIZE_CONTENT
+                              layout:
+                                type: FLEX
+                                flex_flow: ROW
+                                flex_align_main: START
+                                flex_align_cross: END
+                                pad_column: 0
+                              widgets:
+                                # Left half: battery icon + SoC
+                                - obj:
+                                    id: battery_section
+                                    flex_grow: 1
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    height: SIZE_CONTENT
+                                    layout:
+                                      type: FLEX
+                                      flex_flow: ROW
+                                      flex_align_main: CENTER
+                                      flex_align_cross: END
+                                      pad_column: 4
+                                    widgets:
+                                      - image:
+                                          id: battery_img
+                                          src: battery_icon
+                                          image_recolor: ${color_white}
+                                          image_recolor_opa: 100%
+                                      - label:
+                                          id: battery_soc_label
+                                          text_font: font_house_electric
+                                          text_color: ${color_white}
+                                          text: "--%"
+                                # Right half: grid icon + value + unit
+                                - obj:
+                                    id: grid_section
+                                    flex_grow: 1
+                                    bg_opa: TRANSP
+                                    border_width: 0
+                                    pad_all: 0
+                                    height: SIZE_CONTENT
+                                    layout:
+                                      type: FLEX
+                                      flex_flow: ROW
+                                      flex_align_main: CENTER
+                                      flex_align_cross: END
+                                      pad_column: 4
+                                    widgets:
+                                      - image:
+                                          id: grid_icon_img
+                                          src: grid_icon
+                                          image_recolor: ${color_white}
+                                          image_recolor_opa: 100%
+                                      - label:
+                                          id: grid_usage_label
+                                          text_font: font_house_electric
+                                          text_color: ${color_white}
+                                          text: "--"
+                                      - label:
+                                          id: grid_usage_unit_label
+                                          text_font: font_body
+                                          text_color: ${color_white}
+                                          text: "w"
+
+              # --- Clock section ---
+              - obj:
+                  id: clock_container
+                  flex_grow: 1
+                  height: "100%"
+                  bg_color: ${color_dark_grey}
+                  border_color: ${color_medium_grey}
+                  border_width: 1
+                  pad_all: 4
+                  layout:
+                    type: FLEX
+                    flex_flow: COLUMN
+                    flex_align_main: CENTER
+                    flex_align_cross: CENTER
+                    pad_row: 4
+
+                  widgets:
+                    - image:
+                        id: clock_icon_img
+                        src: clock_icon
+                        image_recolor: ${color_white}
+                        image_recolor_opa: 100%
+                    - label:
+                        id: time_label
+                        width: "100%"
+                        text_align: CENTER
+                        text_font: font_time
+                        text_color: ${color_white}
+                        text: "--:--"
+
+        # ### BOTTOM ROW: now/next rates (left) + dishwasher (right) ###
+        - obj:
+            id: bottom_row
+            flex_grow: 1
+            width: "100%"
+            bg_color: ${color_black}
+            border_width: 0
+            pad_all: 0
+            layout:
+              type: FLEX
+              flex_flow: ROW
+              flex_align_main: START
+              flex_align_cross: STRETCH
+              pad_column: 4
+
+            widgets:
+              # --- Rate section (now + next) ---
+              - obj:
+                  id: rate_row
+                  flex_grow: 1
+                  bg_opa: TRANSP
+                  border_width: 0
+                  pad_all: 0
+                  layout:
+                    type: FLEX
+                    flex_flow: ROW
+                    flex_align_main: START
+                    flex_align_cross: STRETCH
+                    pad_column: 4
+
+                  widgets:
+                    - obj:
+                        id: now_container
+                        flex_grow: 1
+                        height: "100%"
+                        bg_color: ${color_dark_grey}
+                        border_width: 0
+                        pad_all: 5
+                        widgets:
+                          - label:
+                              id: current_rate_label
+                              text_font: font_electric
+                              text_color: ${color_white}
+                              text: "--p"
+                          - label:
+                              id: now_label
+                              align: TOP_RIGHT
+                              text: "Now"
+                              text_font: font_body
+                              text_color: ${color_white}
+
+                    - obj:
+                        id: next_container
+                        flex_grow: 1
+                        height: "100%"
+                        bg_color: ${color_dark_grey}
+                        border_width: 0
+                        pad_all: 5
+                        widgets:
+                          - label:
+                              id: next_rate_label
+                              text_font: font_electric
+                              text_color: ${color_white}
+                              text: "--p"
+                          - label:
+                              id: next_label
+                              align: TOP_RIGHT
+                              text: "Next"
+                              text_font: font_body
+                              text_color: ${color_white}
+
+              # --- Dishwasher section ---
+              - obj:
+                  id: dishwasher_container
+                  flex_grow: 1
+                  bg_color: ${color_dark_grey}
+                  border_color: ${color_medium_grey}
+                  border_width: 1
+                  pad_all: 4
+                  layout:
+                    type: FLEX
+                    flex_flow: ROW
+                    flex_align_main: START
+                    flex_align_cross: CENTER
+                    pad_column: 4
+
+                  widgets:
+                    - image:
+                        id: dishwasher_appliance_icon
+                        src: dishwasher_icon_idle
+                        image_recolor: ${color_white}
+                        image_recolor_opa: 100%
+
+                    - obj:
+                        id: dishwasher_info
+                        flex_grow: 1
+                        bg_color: ${color_dark_grey}
+                        border_width: 0
+                        pad_all: 0
+                        height: SIZE_CONTENT
+                        layout:
+                          type: FLEX
+                          flex_flow: COLUMN
+                          flex_align_main: CENTER
+                          flex_align_cross: START
+                          pad_row: 2
+                        widgets:
+                          - label:
+                              id: dishwasher_label
+                              text_font: font_body
+                              text_color: ${color_white}
+                              text: "---"
+                          - label:
+                              id: dishwasher_time_label
+                              text_font: font_house_electric
+                              text_color: ${color_white}
+                              text: ""
+
+                    - image:
+                        id: dishwasher_status_icon
+                        src: dishwasher_icon_idle
+                        image_recolor: ${color_white}
+                        image_recolor_opa: 100%
+
+image:
+  - file: mdi:hot-tub
+    id: hot_tub
+    resize: ${icon_size_large}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:clock-time-eight
+    id: clock_icon
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:home-lightning-bolt
+    id: home_electric
+    resize: ${icon_size_large}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:solar-panel
+    id: solar_panel
+    resize: ${icon_size_small}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:transmission-tower
+    id: grid_icon
+    resize: ${icon_size_small}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:battery
+    id: battery_icon
+    resize: ${icon_size_small}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:hot-tub
+    id: hot_tub_small
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  # Dishwasher state icons
+  - file: mdi:dishwasher
+    id: dishwasher_icon_idle
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:water-pump
+    id: dishwasher_icon_washing
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:water
+    id: dishwasher_icon_rinsing
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:heat-wave
+    id: dishwasher_icon_drying
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:check-circle-outline
+    id: dishwasher_icon_finished
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:clock-start
+    id: dishwasher_icon_delayed
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:pause-circle-outline
+    id: dishwasher_icon_paused
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+  - file: mdi:alert-circle-outline
+    id: dishwasher_icon_error
+    resize: ${icon_size_normal}
+    type: RGB565
+    transparency: alpha_channel
+
+font:
+  - file: "gfonts://Patua+One"
+    id: font_title
+    size: ${font_title_size}
+  - file: "gfonts://Roboto@500"
+    id: font_sub_title
+    size: ${font_sub_title_size}
+  - file: "gfonts://Roboto"
+    id: font_normal
+    size: ${font_normal_size}
+  - file: "gfonts://Roboto@700"
+    id: font_normal_bold
+    size: ${font_normal_bold_size}
+  - file: "gfonts://Roboto"
+    id: font_body
+    size: ${font_body_size}
+  - file: "gfonts://Roboto@900"
+    id: font_body_hot_tub
+    size: ${font_body_hot_tub_size}
+  - file: "gfonts://B612+Mono@700"
+    id: font_house_electric
+    size: ${font_house_electric_size}
+  - file: "gfonts://Alfa+Slab+One"
+    id: font_electric
+    size: ${font_electric_size}
+  - file: "gfonts://B612+Mono@700"
+    id: font_time
+    size: ${font_time_size}

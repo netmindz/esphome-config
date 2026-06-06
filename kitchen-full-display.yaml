@@ -1,0 +1,111 @@
+substitutions:
+  # Font sizes scaled for 320x240 (2/3 of 480x320 defaults in common-display.yaml)
+  font_title_size: "24"
+  font_sub_title_size: "19"
+  font_normal_size: "18"
+  font_normal_bold_size: "18"
+  font_body_size: "13"
+  font_body_hot_tub_size: "53"
+  font_house_electric_size: "19"
+  font_electric_size: "28"
+  font_time_size: "30"
+  icon_size_large: "53x53"
+  icon_size_normal: "33x33"
+  icon_size_small: "16x16"
+
+esphome:
+  name: kitchen-full-display
+  friendly_name: Kitchen Full Display
+
+packages:
+  common_display: !include common-display.yaml
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Kitchen-Full-Display"
+    password: !secret wifi_password
+
+captive_portal:
+
+output:
+- platform: ledc
+  pin: GPIO21
+  id: backlight_pwm
+  
+light:
+- platform: monochromatic
+  output: backlight_pwm
+  name: Display Backlight
+  id: backlight
+  restore_mode: ALWAYS_ON
+
+spi:
+  # Display SPI bus (ILI9341)
+  - id: tft
+    clk_pin: GPIO14
+    mosi_pin: GPIO13
+    miso_pin: GPIO12
+  # Touchscreen SPI bus (XPT2046) — separate bus on the esp32-2432S028 (Cheap Yellow Display)
+  - id: touch_spi
+    clk_pin: GPIO25
+    mosi_pin: GPIO32
+    miso_pin: GPIO39
+
+# Resistive touchscreen: XPT2046 controller on esp32-2432S028 (Cheap Yellow Display, CYD)
+# Calibration values are approximate — tune x_min/max and y_min/max for your specific unit
+# Transform swap_xy/mirror_x may need adjusting depending on rotation
+touchscreen:
+  - platform: xpt2046
+    id: cyd_touch
+    spi_id: touch_spi
+    cs_pin: GPIO33
+    interrupt_pin: GPIO36
+    update_interval: 50ms
+    threshold: 400
+    calibration:
+      x_min: 280
+      x_max: 3860
+      y_min: 340
+      y_max: 3860
+    transform:
+      swap_xy: true
+      mirror_x: true
+      mirror_y: false
+
+display:
+- platform: mipi_spi
+  id: cyd_display
+  color_order: rgb
+  model: esp32-2432S028-9342
+  spi_id: tft
+  cs_pin: GPIO15
+  dc_pin: GPIO2
+  invert_colors: false
+  dimensions:
+    width: 320
+    height: 240
+
+lvgl:
+  rotation: 180
+  

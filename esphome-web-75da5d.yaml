@@ -1,0 +1,46 @@
+substitutions:
+  name: esphome-web-75da5d
+  friendly_name: ESP-battery
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: false
+  project:
+    name: esphome.web
+    version: dev
+
+esp8266:
+  board: esp01_1m
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+# Allow Over-The-Air updates
+ota:
+  platform: esphome
+
+
+wifi:
+  # Set up a wifi access point
+  ap: {}
+
+# In combination with the `ap` this allows the user
+# to provision wifi credentials to the device via WiFi AP.
+captive_portal:
+
+# To have a "next url" for improv serial
+web_server:
+
+binary_sensor:
+  - platform: gpio
+    pin: 4
+    name: "PIR Sensor"
+    device_class: motion
+
+# deep_sleep:
+#   run_duration: 1min
+#   sleep_duration: 2min
