@@ -75,6 +75,14 @@ globals:
     type: float
     restore_value: no
     initial_value: 'NAN'
+  - id: en_battery_soc_val
+    type: float
+    restore_value: no
+    initial_value: 'NAN'
+  - id: en_battery_show_power
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 # ── LVGL page ─────────────────────────────────────────────────────────────────
 lvgl:
@@ -243,6 +251,39 @@ script:
             // Grid dominant
             return lv_color_hex(0xFFA500);    // orange
 
+  # Render battery label: SoC% or power in W depending on en_battery_show_power
+  - id: en_refresh_battery_label
+    then:
+      - lvgl.label.update:
+          id: en_battery_value
+          text: !lambda |-
+            static char buf[10];
+            if (!id(en_battery_show_power)) {
+              float s = id(en_battery_soc_val);
+              if (isnan(s)) snprintf(buf, sizeof(buf), "--%");
+              else          snprintf(buf, sizeof(buf), "%d%%", (int)s);
+            } else {
+              float w = id(en_battery_w);
+              if (isnan(w)) {
+                snprintf(buf, sizeof(buf), "--W");
+              } else {
+                int v = (int)w, a = v < 0 ? -v : v;
+                const char* sign = v >= 0 ? "+" : "-";
+                if (a >= 1000) snprintf(buf, sizeof(buf), "%s%d,%03dW", sign, a/1000, a%1000);
+                else           snprintf(buf, sizeof(buf), "%s%dW", sign, a);
+              }
+            }
+            return buf;
+
+# ── Interval: cycle battery label between SoC and power every 4 s ─────────────
+interval:
+  - interval: 4s
+    then:
+      - globals.set:
+          id: en_battery_show_power
+          value: !lambda return !id(en_battery_show_power);
+      - script.execute: en_refresh_battery_label
+
 # ── Sensors ───────────────────────────────────────────────────────────────────
 sensor:
 
@@ -257,9 +298,13 @@ sensor:
       - lvgl.label.update:
           id: en_solar_value
           text: !lambda |-
-            static char buf[8];
+            static char buf[10];
             if (isnan(x)) { snprintf(buf, sizeof(buf), "--W"); }
-            else          { snprintf(buf, sizeof(buf), "%dW", (int)x); }
+            else {
+              int a = (int)x;
+              if (a >= 1000) snprintf(buf, sizeof(buf), "%d,%03dW", a/1000, a%1000);
+              else           snprintf(buf, sizeof(buf), "%dW", a);
+            }
             return buf;
       - lvgl.label.update:
           id: en_solar_icon
@@ -277,9 +322,13 @@ sensor:
       - lvgl.label.update:
           id: en_house_value
           text: !lambda |-
-            static char buf[8];
+            static char buf[10];
             if (isnan(x)) { snprintf(buf, sizeof(buf), "--W"); }
-            else          { snprintf(buf, sizeof(buf), "%dW", (int)x); }
+            else {
+              int a = (int)x;
+              if (a >= 1000) snprintf(buf, sizeof(buf), "%d,%03dW", a/1000, a%1000);
+              else           snprintf(buf, sizeof(buf), "%dW", a);
+            }
             return buf;
 
   # Battery state of charge (%)
@@ -287,13 +336,10 @@ sensor:
     id: en_battery_soc
     entity_id: ${battery_soc_entity}
     on_value:
-      - lvgl.label.update:
-          id: en_battery_value
-          text: !lambda |-
-            static char buf[8];
-            if (isnan(x)) { snprintf(buf, sizeof(buf), "--%"); }
-            else          { snprintf(buf, sizeof(buf), "%d%%", (int)x); }
-            return buf;
+      - globals.set:
+          id: en_battery_soc_val
+          value: !lambda return x;
+      - script.execute: en_refresh_battery_label
       - lvgl.label.update:
           id: en_battery_icon
           text_color: !lambda |-
@@ -302,7 +348,7 @@ sensor:
             if (x > 20.0f) return lv_color_hex(0xFF8800);  // orange
             return         lv_color_hex(0xFF2200);          // red
 
-  # Battery power — internal; used only for house-icon colour logic
+  # Battery power — internal; used for house-icon colour and cycling battery label
   - platform: homeassistant
     id: en_battery_power
     entity_id: ${battery_power_entity}
@@ -312,6 +358,7 @@ sensor:
           id: en_battery_w
           value: !lambda return x;
       - script.execute: en_update_house_colour
+      - script.execute: en_refresh_battery_label
 
   # Grid power  (+ve = importing, −ve = exporting)
   - platform: homeassistant
@@ -324,9 +371,13 @@ sensor:
       - lvgl.label.update:
           id: en_grid_value
           text: !lambda |-
-            static char buf[8];
+            static char buf[10];
             if (isnan(x)) { snprintf(buf, sizeof(buf), "--W"); }
-            else          { snprintf(buf, sizeof(buf), "%dW", (int)(x >= 0 ? x : -x)); }
+            else {
+              int a = (int)(x >= 0 ? x : -x);
+              if (a >= 1000) snprintf(buf, sizeof(buf), "%d,%03dW", a/1000, a%1000);
+              else           snprintf(buf, sizeof(buf), "%dW", a);
+            }
             return buf;
       - lvgl.label.update:
           id: en_grid_icon
