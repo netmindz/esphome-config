@@ -1,0 +1,282 @@
+# pages/now-playing-text.yaml
+# Text-only Now Playing page for 64×64 HUB75
+#
+# Displays title, artist, album and a live progress bar.
+# No cover art / Music Assistant / MASS dependency.
+#
+# Layout (64×64):
+#   ┌──────────────────────────────────────────────┐
+#   │  Title (circular scroll)                     │  8 px
+#   ├──────────────────────────────────────────────┤  1 px divider
+#   │  Artist (circular scroll)                    │  8 px
+#   ├──────────────────────────────────────────────┤  1 px divider
+#   │  Album  (circular scroll)                    │  8 px
+#   │                                              │
+#   │  (flex spacer)                               │
+#   │                                              │
+#   ├──────────────────────────────────────────────┤  1 px divider
+#   │  ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  │  6 px progress bar
+#   └──────────────────────────────────────────────┘
+#
+# Required vars:
+#   page_friendly_name    - Display name shown in Home Assistant
+#   media_player_entity   - HA media_player entity ID
+
+# ── Page registration ──────────────────────────────────────────────────────────
+lvgl_page_manager:
+  pages:
+    - page: page_now_playing_text
+      friendly_name: "${page_friendly_name}"
+
+# ── Global: track progress percentage ─────────────────────────────────────────
+globals:
+  - id: np_progress_pct
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+# ── LVGL ──────────────────────────────────────────────────────────────────────
+lvgl:
+  style_definitions:
+    - id: np_title_opa
+      text_opa: 95%
+    - id: np_artist_opa
+      text_opa: 80%
+    - id: np_album_opa
+      text_opa: 65%
+    - id: np_div_style
+      bg_color: 0x303030
+      bg_opa: COVER
+      border_width: 0
+      pad_all: 0
+    - id: np_invis_style
+      bg_opa: TRANSP
+      border_opa: TRANSP
+      outline_opa: TRANSP
+      shadow_opa: TRANSP
+      pad_all: 0
+    - id: np_bar_track_style
+      pad_all: 0
+      bg_color: 0x001122
+      bg_opa: COVER
+    - id: np_bar_fill_style
+      bg_color: 0x228B22
+      bg_opa: COVER
+
+  pages:
+    - id: page_now_playing_text
+      bg_color: 0x000000
+      pad_all: 0
+
+      on_load:
+        then:
+          - lambda: |-
+              lv_obj_set_style_anim_duration(id(np_title_lbl),  lv_anim_speed(7),  LV_PART_MAIN);
+              lv_obj_set_style_anim_duration(id(np_artist_lbl), lv_anim_speed(12), LV_PART_MAIN);
+              lv_obj_set_style_anim_duration(id(np_album_lbl),  lv_anim_speed(8),  LV_PART_MAIN);
+
+      widgets:
+        - obj:
+            x: 0
+            y: 0
+            width: 64
+            height: 64
+            bg_opa: TRANSP
+            border_opa: TRANSP
+            outline_opa: TRANSP
+            pad_left: 2
+            pad_right: 2
+            pad_top: 2
+            pad_bottom: 2
+            radius: 0
+            layout:
+              type: flex
+              flex_flow: COLUMN
+              pad_row: 2
+            widgets:
+
+              - label:
+                  id: np_title_lbl
+                  width: 100%
+                  long_mode: SCROLL_CIRCULAR
+                  text: "---"
+                  styles: [st_spleen8, np_title_opa]
+
+              - obj:
+                  width: 100%
+                  height: 1
+                  styles: [np_div_style]
+
+              - label:
+                  id: np_artist_lbl
+                  width: 100%
+                  long_mode: SCROLL_CIRCULAR
+                  text: "---"
+                  styles: [st_spleen8, np_artist_opa]
+
+              - obj:
+                  width: 100%
+                  height: 1
+                  styles: [np_div_style]
+
+              - label:
+                  id: np_album_lbl
+                  width: 100%
+                  long_mode: SCROLL_CIRCULAR
+                  text: "---"
+                  styles: [st_spleen8, np_album_opa]
+
+              - obj:
+                  width: 1
+                  height: 1
+                  flex_grow: 1
+                  styles: [np_invis_style]
+
+              - obj:
+                  width: 100%
+                  height: 1
+                  styles: [np_div_style]
+
+              - bar:
+                  id: np_progress_bar
+                  width: 100%
+                  height: 6
+                  animated: false
+                  min_value: 0
+                  max_value: 100
+                  mode: NORMAL
+                  indicator:
+                    styles: [np_bar_fill_style]
+                  styles: [np_bar_track_style]
+
+# ── Text sensors ───────────────────────────────────────────────────────────────
+text_sensor:
+
+  - platform: homeassistant
+    id: np_title
+    entity_id: ${media_player_entity}
+    attribute: media_title
+    internal: true
+    on_value:
+      - script.execute:
+          id: normalize_media_text
+          widget: !lambda 'return id(np_title_lbl);'
+          text: !lambda 'return x.c_str();'
+
+  - platform: homeassistant
+    id: np_artist
+    entity_id: ${media_player_entity}
+    attribute: media_artist
+    internal: true
+    on_value:
+      - script.execute:
+          id: normalize_media_text
+          widget: !lambda 'return id(np_artist_lbl);'
+          text: !lambda 'return x.c_str();'
+
+  - platform: homeassistant
+    id: np_album
+    entity_id: ${media_player_entity}
+    attribute: media_album_name
+    internal: true
+    on_value:
+      - script.execute:
+          id: normalize_media_text
+          widget: !lambda 'return id(np_album_lbl);'
+          text: !lambda 'return x.c_str();'
+
+  - platform: homeassistant
+    id: np_state
+    entity_id: ${media_player_entity}
+    internal: true
+
+  - platform: homeassistant
+    id: np_pos_updated_at
+    entity_id: ${media_player_entity}
+    attribute: media_position_updated_at
+    internal: true
+
+  - platform: homeassistant
+    id: np_content_id
+    entity_id: ${media_player_entity}
+    attribute: media_content_id
+    internal: true
+
+# ── Numeric sensors ────────────────────────────────────────────────────────────
+sensor:
+
+  - platform: homeassistant
+    id: np_position
+    entity_id: ${media_player_entity}
+    attribute: media_position
+    internal: true
+
+  - platform: homeassistant
+    id: np_duration
+    entity_id: ${media_player_entity}
+    attribute: media_duration
+    internal: true
+
+# ── Progress bar interval (1 s tick) ──────────────────────────────────────────
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          const float     dur     = id(np_duration).state;
+          const float     pos_raw = id(np_position).state;
+          const auto      st      = id(np_state).state;
+          const auto      upd     = id(np_pos_updated_at).state;
+          const auto      cid     = id(np_content_id).state;
+          const uint32_t  now_ms  = millis();
+
+          static float       base_pos   = 0.0f;
+          static uint32_t    base_ms    = 0;
+          static std::string last_state;
+          static std::string last_upd;
+          static std::string last_cid;
+          static bool        first_run  = true;
+
+          bool reanchor      = false;
+          bool track_changed = false;
+
+          if (upd != last_upd) { last_upd = upd; reanchor = true; }
+          if (cid != last_cid) {
+            last_cid       = cid;
+            reanchor       = true;
+            track_changed  = true;
+            if (!first_run) {
+              id(np_progress_pct) = 0;
+              lv_bar_set_value(id(np_progress_bar), 0, LV_ANIM_OFF);
+            }
+          }
+          if (st != last_state) { last_state = st; reanchor = true; }
+
+          if (reanchor || first_run) {
+            base_pos  = (track_changed && !first_run)
+                          ? 0.0f
+                          : (std::isnan(pos_raw) ? 0.0f : pos_raw);
+            base_ms   = now_ms;
+            first_run = false;
+          }
+
+          const bool has_track = (st == "playing" || st == "paused");
+          if (!has_track || dur <= 0.0f || std::isnan(dur)) {
+            id(np_progress_pct) = 0;
+            lv_bar_set_value(id(np_progress_bar), 0, LV_ANIM_OFF);
+            return;
+          }
+
+          float pos_live = (st == "playing")
+                             ? base_pos + (now_ms - base_ms) / 1000.0f
+                             : base_pos;
+          if (pos_live < 0.0f) pos_live = 0.0f;
+          if (pos_live > dur)  pos_live = dur;
+
+          int pct = (int)((pos_live / dur) * 100.0f + 0.5f);
+          if (pct < 0)   pct = 0;
+          if (pct > 100) pct = 100;
+
+          if (id(np_progress_pct) != pct) {
+            id(np_progress_pct) = pct;
+            lv_bar_set_value(id(np_progress_bar), pct, LV_ANIM_OFF);
+          }

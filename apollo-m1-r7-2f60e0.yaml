@@ -52,6 +52,13 @@ packages:
       rate_low_threshold: "15"
       rate_high_threshold: "25"
 
+  # Local text-only Now Playing page (no cover art / MASS dependency)
+  now_playing_text: !include
+    file: pages/now-playing-text.yaml
+    vars:
+      page_friendly_name: "Now Playing"
+      media_player_entity: "media_player.living_room_hub"
+
   remote_package_files:
     url: https://github.com/pavlov-net/hub75-studio
     ref: main
@@ -111,14 +118,6 @@ packages:
         person_b: "person.person_b"
         person_a_icon: "\U000F040A"
         person_b_icon: "\U000F0B8F"
-
-    # "Now Playing" media player page
-    - path: packages/pages/now-playing.yaml
-      vars:
-        uid: "your_uid"
-        page_friendly_name: "Now Playing"
-        ha_base_url: "http://mass.lan:8123"  # Used to get preview images
-        media_player_entity: "media_player.living_room_hub_3"
 
     # Page that uses lvgl-canvas-fx to render various effects (and change which in HA)
     - path: packages/pages/fx.yaml
