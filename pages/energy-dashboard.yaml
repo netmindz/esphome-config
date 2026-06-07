@@ -433,6 +433,7 @@ sensor:
           value: !lambda return x;
       - script.execute: en_update_house_colour
       - script.execute: en_refresh_battery_label
+      - script.execute: en_refresh_battery_icon
 
   # Grid power  (+ve = importing, −ve = exporting)
   - platform: homeassistant
