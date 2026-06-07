@@ -56,7 +56,27 @@ font:
     glyphs:
       - "\U000F0D9B"  # mdi:solar-panel
       - "\U000F1903"  # mdi:home-lightning-bolt
-      - "\U000F0079"  # mdi:battery
+      - "\U000F008E"  # mdi:battery-outline      (0%)
+      - "\U000F007A"  # mdi:battery-10
+      - "\U000F007B"  # mdi:battery-20
+      - "\U000F007C"  # mdi:battery-30
+      - "\U000F007D"  # mdi:battery-40
+      - "\U000F007E"  # mdi:battery-50
+      - "\U000F007F"  # mdi:battery-60
+      - "\U000F0080"  # mdi:battery-70
+      - "\U000F0081"  # mdi:battery-80
+      - "\U000F0082"  # mdi:battery-90
+      - "\U000F0079"  # mdi:battery              (100%)
+      - "\U000F089C"  # mdi:battery-charging-10
+      - "\U000F0086"  # mdi:battery-charging-20
+      - "\U000F0087"  # mdi:battery-charging-30
+      - "\U000F0088"  # mdi:battery-charging-40
+      - "\U000F089D"  # mdi:battery-charging-50
+      - "\U000F0089"  # mdi:battery-charging-60
+      - "\U000F089E"  # mdi:battery-charging-70
+      - "\U000F008A"  # mdi:battery-charging-80
+      - "\U000F008B"  # mdi:battery-charging-90
+      - "\U000F0085"  # mdi:battery-charging-100
       - "\U000F0D3E"  # mdi:transmission-tower        (idle / unknown)
       - "\U000F192C"  # mdi:transmission-tower-export (exporting to grid)
       - "\U000F192D"  # mdi:transmission-tower-import (importing from grid)
@@ -282,6 +302,56 @@ script:
             if (w > 0) return lv_color_hex(0xFF8800);  // orange — discharging (positive = discharging)
             return lv_color_hex(0xFFFFFF);             // white  — idle (zero)
 
+  # Render battery icon: glyph reflects SoC level; colour reflects charging state
+  - id: en_refresh_battery_icon
+    then:
+      - lvgl.label.update:
+          id: en_battery_icon
+          text: !lambda |-
+            float soc = id(en_battery_soc_val);
+            float w   = id(en_battery_w);
+            int tier = isnan(soc) ? 0 : (int)(soc / 10.0f);
+            if (tier < 0)  tier = 0;
+            if (tier > 10) tier = 10;
+            if (!isnan(w) && w < 0) {
+              const char* icons[] = {
+                "\U000F089C",  // battery-charging-10 (no 0% charging variant)
+                "\U000F089C",  // battery-charging-10
+                "\U000F0086",  // battery-charging-20
+                "\U000F0087",  // battery-charging-30
+                "\U000F0088",  // battery-charging-40
+                "\U000F089D",  // battery-charging-50
+                "\U000F0089",  // battery-charging-60
+                "\U000F089E",  // battery-charging-70
+                "\U000F008A",  // battery-charging-80
+                "\U000F008B",  // battery-charging-90
+                "\U000F0085",  // battery-charging-100
+              };
+              return icons[tier];
+            }
+            const char* icons[] = {
+              "\U000F008E",  // battery-outline (0%)
+              "\U000F007A",  // battery-10
+              "\U000F007B",  // battery-20
+              "\U000F007C",  // battery-30
+              "\U000F007D",  // battery-40
+              "\U000F007E",  // battery-50
+              "\U000F007F",  // battery-60
+              "\U000F0080",  // battery-70
+              "\U000F0081",  // battery-80
+              "\U000F0082",  // battery-90
+              "\U000F0079",  // battery (100%)
+            };
+            return icons[tier];
+          text_color: !lambda |-
+            float soc = id(en_battery_soc_val);
+            float w   = id(en_battery_w);
+            if (!isnan(w) && w < 0) return lv_color_hex(0x00CC00);  // green  — charging
+            if (isnan(soc))         return lv_color_hex(0x666666);  // dim    — unknown
+            if (soc > 50.0f)        return lv_color_hex(0x00CC00);  // green  — high
+            if (soc > 20.0f)        return lv_color_hex(0xFF8800);  // orange — medium
+            return                         lv_color_hex(0xFF2200);  // red    — low
+
 # ── Interval: cycle battery label between SoC and power every 4 s ─────────────
 interval:
   - interval: 4s
@@ -350,13 +420,7 @@ sensor:
           id: en_battery_soc_val
           value: !lambda return x;
       - script.execute: en_refresh_battery_label
-      - lvgl.label.update:
-          id: en_battery_icon
-          text_color: !lambda |-
-            if (isnan(x))  return lv_color_hex(0x666666);
-            if (x > 50.0f) return lv_color_hex(0x00CC00);  // green
-            if (x > 20.0f) return lv_color_hex(0xFF8800);  // orange
-            return         lv_color_hex(0xFF2200);          // red
+      - script.execute: en_refresh_battery_icon
 
   # Battery power — internal; used for house-icon colour and cycling battery label
   - platform: homeassistant
